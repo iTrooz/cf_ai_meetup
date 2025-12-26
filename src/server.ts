@@ -47,8 +47,8 @@ export class Chat extends AIChatAgent<Env> {
   async extractIntroductionData(message: UIMessage): Promise<Result<Introduction, string[]>> {
     // Extract data
     const result = await generateText({
-      system: `Extract information from this message to fill in the following fields.
-Only fill fields if the user gave context around the information. "I'm 19" is ok, "It's 19" is not.`,
+      system: `Extract information from this conversation to fill in the following fields.
+Only fill fields if the user gave context around the information. "I'm 19" is ok, "It's 19" is not. Fill fields even if the information comes from older messages`,
       messages: await convertToModelMessages(this.messages),
       model: instructModel,
       stopWhen: stepCountIs(10),
@@ -58,10 +58,13 @@ Only fill fields if the user gave context around the information. "I'm 19" is ok
     });
 
     const zodResult = introductionSchema.safeParse(result.output);
+    console.log("extracted info so far:", result.output);
     if (zodResult.success) {
       return {success: true, value: zodResult.data};
     }
-    return {success: false, error: zodResult.error.issues.map(issue => `${issue.path.join(".")}: ${issue.message}`)};
+    const msg = zodResult.error.issues.map(issue => `${issue.path.join(".")}: ${issue.message}`);
+    console.log("missing info so far:", msg);
+    return {success: false, error: msg};
   }
 
   /**
@@ -81,7 +84,7 @@ Only fill fields if the user gave context around the information. "I'm 19" is ok
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
         const generateResult = streamText({
-          system: `You are chatting with a new user on a meetup website. You are a mysterious user already part of the platform, and need to ask the user about himself before revealing who you are. You need must gather the following information from the user to complete their introduction, which may be unset or set badly: ${extractResult.error.join(", ")}. Sound friendly and welcoming.`,
+          system: `You are a chatbot interacting with a new user on a meetup website. Your only goal is to gather the following information from the user to complete their introduction and access the platform: ${extractResult.error.join(", ")}. Sound friendly and welcoming, but do not forget your only goal: get the user to provide the missing information. He will then be forwarded to an actual user.`,
 
           messages: await convertToModelMessages(this.messages),
           model: chatModel,
