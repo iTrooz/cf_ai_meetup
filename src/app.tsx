@@ -58,16 +58,16 @@ export default function Chat() {
     setTheme(newTheme);
   };
 
-  const [state, setState] = useState<CommonState>({ state: "introduction" });
+  const [syncedState, setSyncedState] = useState<CommonState>({ state: "introduction" });
   const agent = useAgent({
     agent: "chat",
     onStateUpdate: (newState) => {
-      setState(newState as any);
+      setSyncedState(newState as any);
     }
   });
 
   let indicator: string = "";
-  const isWaitingForPartner = state.state === "waiting_for_partner";
+  const isWaitingForPartner = syncedState.state === "waiting_for_partner";
   if (isWaitingForPartner) {
     indicator = "Waiting for a community member to join the chat... this may take a long time";
   }
@@ -113,7 +113,7 @@ export default function Chat() {
 
   const resetProfile = () => {
     clearHistory();
-    setState({ state: "introduction" });
+    agent.setState({ state: "introduction" });
   }
 
   // Scroll to bottom when messages change
