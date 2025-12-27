@@ -17,7 +17,6 @@ import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvoca
 
 // Icon imports
 import {
-  BugIcon,
   MoonIcon,
   RobotIcon,
   SunIcon,
@@ -69,9 +68,19 @@ export default function Chat() {
     setTheme(newTheme);
   };
 
+  const [state, setState] = useState<CommonState>({ state: "introduction" });
   const agent = useAgent({
-    agent: "chat"
+    agent: "chat",
+    onStateUpdate: (newState) => {
+      setState(newState as any);
+    }
   });
+
+  let indicator: string = "";
+  const isWaitingForPartner = state.state === "waiting_for_partner";
+  if (isWaitingForPartner) {
+    indicator = "Waiting for a community member to join the chat... this may take a long time";
+  }
 
   const [agentInput, setAgentInput] = useState("");
   const handleAgentInputChange = (
@@ -112,6 +121,11 @@ export default function Chat() {
   } = useAgentChat<unknown, UIMessage<{ createdAt: string }>>({
     agent
   });
+
+  const resetProfile = () => {
+    clearHistory();
+    setState({ state: "introduction" });
+  }
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -176,7 +190,7 @@ export default function Chat() {
             size="md"
             shape="square"
             className="rounded-full h-9 w-9"
-            onClick={clearHistory}
+            onClick={resetProfile}
           >
             <TrashIcon size={20} />
           </Button>
@@ -327,15 +341,31 @@ export default function Chat() {
             });
             setTextareaHeight("auto"); // Reset height after submission
           }}
-          className="p-3 bg-neutral-50 absolute bottom-0 left-0 right-0 z-10 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
+          className="px-3 pb-3 bg-neutral-50 absolute bottom-0 left-0 right-0 z-10 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
         >
+          {/* Typing Indicator */}
+          {indicator && (
+            <div className="px-1 py-2 mb-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 bg-neutral-400 rounded-full animate-pulse"></div>
+                  <div className="w-2 h-2 bg-neutral-400 rounded-full animate-pulse delay-500"></div>
+                  <div className="w-2 h-2 bg-neutral-400 rounded-full animate-pulse delay-1000"></div>
+                </div>
+                <span>{indicator}</span>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center gap-2">
             <div className="flex-1 relative">
               <Textarea
-                disabled={pendingToolCallConfirmation}
+                disabled={pendingToolCallConfirmation || isWaitingForPartner}
                 placeholder={
                   pendingToolCallConfirmation
                     ? "Please respond to the tool confirmation above..."
+                    : isWaitingForPartner
+                    ? "Waiting for community member..."
                     : "Send a message..."
                 }
                 className="flex w-full border border-neutral-200 dark:border-neutral-700 px-3 py-2  ring-offset-background placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl text-base! pb-10 dark:bg-neutral-900"
@@ -375,7 +405,7 @@ export default function Chat() {
                   <button
                     type="submit"
                     className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                    disabled={pendingToolCallConfirmation || !agentInput.trim()}
+                    disabled={pendingToolCallConfirmation || !agentInput.trim() || isWaitingForPartner}
                     aria-label="Send message"
                   >
                     <PaperPlaneTiltIcon size={16} />

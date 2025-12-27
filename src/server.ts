@@ -42,7 +42,7 @@ type Introduction = z.infer<typeof introductionSchema>;
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
  */
-export class Chat extends AIChatAgent<Env> {
+export class Chat extends AIChatAgent<Env, CommonState> {
 
   // Manually send a message as the agent
   // HACK
@@ -94,7 +94,8 @@ Only fill fields if the user gave context around the information. "I'm 19" is ok
   ) {
     const msg = this.messages[this.messages.length - 1];
     const extractResult = await this.extractIntroductionData(msg);
-    if (extractResult.success) {
+    if (extractResult.success || true) {
+      this.setState({ state: "waiting_for_partner" });
       return this.responseFromString("Good ! Now that I have all your information, you can proceed to access the platform. Welcome aboard!");
     }
 
