@@ -38,7 +38,6 @@ export default function Chat() {
     const savedTheme = localStorage.getItem("theme");
     return (savedTheme as "dark" | "light") || "dark";
   });
-  const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -162,15 +161,6 @@ export default function Chat() {
             <h2 className="font-semibold text-base">AI Chat Agent</h2>
           </div>
 
-          <div className="flex items-center gap-2 mr-2">
-            <BugIcon size={16} />
-            <Toggle
-              toggled={showDebug}
-              aria-label="Toggle debug mode"
-              onClick={() => setShowDebug((prev) => !prev)}
-            />
-          </div>
-
           <Button
             variant="ghost"
             size="md"
@@ -228,11 +218,6 @@ export default function Chat() {
 
             return (
               <div key={m.id}>
-                {showDebug && (
-                  <pre className="text-xs text-muted-foreground overflow-scroll">
-                    {JSON.stringify(m, null, 2)}
-                  </pre>
-                )}
                 <div
                   className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                 >
