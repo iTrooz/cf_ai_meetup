@@ -44,6 +44,24 @@ type Introduction = z.infer<typeof introductionSchema>;
  */
 export class Chat extends AIChatAgent<Env> {
 
+  // Manually send a message as the agent
+  // HACK
+  async responseFromString(s: string): Promise<Response> {
+    let id = Math.random().toString(36).slice(2, 7);
+    let TEXT = `\
+data: {"type":"text-start","id":"${id}"}
+data: {"type":"text-delta","id":"${id}","delta":" ${s}"}
+data: {"type":"text-end","id":"${id}"}
+data: [DONE]
+`;
+    const resp = new Response(TEXT, {
+      headers: {
+        "Content-Type": "text/event-stream",
+      }
+    });
+    return resp;
+  }
+
   async extractIntroductionData(message: UIMessage): Promise<Result<Introduction, string[]>> {
     // Extract data
     const result = await generateText({
@@ -77,8 +95,7 @@ Only fill fields if the user gave context around the information. "I'm 19" is ok
     const msg = this.messages[this.messages.length - 1];
     const extractResult = await this.extractIntroductionData(msg);
     if (extractResult.success) {
-      console.log("OK !");
-      return;
+      return this.responseFromString("Good ! Now that I have all your information, you can proceed to access the platform. Welcome aboard!");
     }
 
     const stream = createUIMessageStream({
