@@ -1,19 +1,15 @@
 /** biome-ignore-all lint/correctness/useUniqueElementIds: it's alright */
-import { useEffect, useState, useRef, useCallback, use } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useAgent } from "agents/react";
-import { isStaticToolUIPart } from "ai";
 import { useAgentChat } from "agents/ai-react";
 import type { UIMessage } from "@ai-sdk/react";
-import type { tools } from "./tools";
 
 // Component imports
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import { Avatar } from "@/components/avatar/Avatar";
-import { Toggle } from "@/components/toggle/Toggle";
 import { Textarea } from "@/components/textarea/Textarea";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
-import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 
 // Icon imports
 import {
@@ -24,12 +20,6 @@ import {
   PaperPlaneTiltIcon,
   StopIcon
 } from "@phosphor-icons/react";
-
-// List of tools that require human confirmation
-// NOTE: this should match the tools that don't have execute functions in tools.ts
-const toolsRequiringConfirmation: (keyof typeof tools)[] = [
-  "getWeatherInformation"
-];
 
 export default function Chat() {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -113,7 +103,6 @@ export default function Chat() {
 
   const {
     messages: agentMessages,
-    addToolResult,
     clearHistory,
     status,
     sendMessage,
@@ -131,18 +120,6 @@ export default function Chat() {
   useEffect(() => {
     agentMessages.length > 0 && scrollToBottom();
   }, [agentMessages, scrollToBottom]);
-
-  const pendingToolCallConfirmation = agentMessages.some((m: UIMessage) =>
-    m.parts?.some(
-      (part) =>
-        isStaticToolUIPart(part) &&
-        part.state === "input-available" &&
-        // Manual check inside the component
-        toolsRequiringConfirmation.includes(
-          part.type.replace("tool-", "") as keyof typeof tools
-        )
-    )
-  );
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -282,41 +259,6 @@ export default function Chat() {
                             );
                           }
 
-                          if (
-                            isStaticToolUIPart(part) &&
-                            m.role === "assistant"
-                          ) {
-                            const toolCallId = part.toolCallId;
-                            const toolName = part.type.replace("tool-", "");
-                            const needsConfirmation =
-                              toolsRequiringConfirmation.includes(
-                                toolName as keyof typeof tools
-                              );
-
-                            return (
-                              <ToolInvocationCard
-                                // biome-ignore lint/suspicious/noArrayIndexKey: using index is safe here as the array is static
-                                key={`${toolCallId}-${i}`}
-                                toolUIPart={part}
-                                toolCallId={toolCallId}
-                                needsConfirmation={needsConfirmation}
-                                onSubmit={({ toolCallId, result }) => {
-                                  addToolResult({
-                                    tool: part.type.replace("tool-", ""),
-                                    toolCallId,
-                                    output: result
-                                  });
-                                }}
-                                addToolResult={(toolCallId, result) => {
-                                  addToolResult({
-                                    tool: part.type.replace("tool-", ""),
-                                    toolCallId,
-                                    output: result
-                                  });
-                                }}
-                              />
-                            );
-                          }
                           return null;
                         })}
                       </div>
@@ -359,11 +301,9 @@ export default function Chat() {
           <div className="flex items-center gap-2">
             <div className="flex-1 relative">
               <Textarea
-                disabled={pendingToolCallConfirmation || isWaitingForPartner}
+                disabled={isWaitingForPartner}
                 placeholder={
-                  pendingToolCallConfirmation
-                    ? "Please respond to the tool confirmation above..."
-                    : isWaitingForPartner
+                  isWaitingForPartner
                     ? "Waiting for community member..."
                     : "Send a message..."
                 }
@@ -404,7 +344,7 @@ export default function Chat() {
                   <button
                     type="submit"
                     className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                    disabled={pendingToolCallConfirmation || !agentInput.trim() || isWaitingForPartner}
+                    disabled={!agentInput.trim() || isWaitingForPartner}
                     aria-label="Send message"
                   >
                     <PaperPlaneTiltIcon size={16} />
