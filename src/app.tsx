@@ -227,7 +227,7 @@ export default function Chat() {
                     }`}
                   >
                     {showAvatar && !isUser ? (
-                      <Avatar username={"AI"} className="shrink-0" />
+                      <Avatar username={"AI"} className="shrink-0" shortName={"AI"} />
                     ) : (
                       !isUser && <div className="w-8" />
                     )}

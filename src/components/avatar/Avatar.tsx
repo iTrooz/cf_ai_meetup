@@ -13,6 +13,7 @@ export type AvatarProps = {
   toggled?: boolean;
   tooltip?: string;
   username: string;
+  shortName?: string;
 };
 
 const AvatarComponent = ({
@@ -23,9 +24,10 @@ const AvatarComponent = ({
   image,
   size = "base",
   toggled,
-  username
+  username,
+  shortName,
 }: AvatarProps) => {
-  const firstInitial = username.charAt(0).toUpperCase();
+  if (!shortName) shortName = username.charAt(0).toUpperCase()
 
   return (
     <Slot
@@ -57,7 +59,7 @@ const AvatarComponent = ({
           alt={username}
         />
       ) : (
-        <p className="text-100 font-bold">{firstInitial}</p>
+        <p className="text-100 font-bold">{shortName}</p>
       )}
     </Slot>
   );
