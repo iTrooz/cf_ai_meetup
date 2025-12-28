@@ -67,7 +67,7 @@ export default function Chat() {
     setTheme(newTheme);
   };
 
-  const [syncedState, setSyncedState] = useState<CommonState>({ state: "introduction" });
+  const [syncedState, setSyncedState] = useState<State>({ state: "introduction" });
   const agent = useAgent({
     agent: "chat",
     name: getProfileID(),

@@ -46,7 +46,7 @@ type IntroductionData = z.infer<typeof introductionSchema>;
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
  */
-export class Chat extends AIChatAgent<Env, CommonState> {
+export class Chat extends AIChatAgent<Env, State> {
 
   initialState = {
     state: "introduction" as const,
@@ -62,7 +62,7 @@ export class Chat extends AIChatAgent<Env, CommonState> {
     return await this.ctx.storage.get<IntroductionData>("introductionData");
   }
 
-  async onStateUpdate(state: CommonState) {
+  async onStateUpdate(state: State) {
     console.log("state updated", state);
     
     if (state.state == "waiting_for_partner") {
