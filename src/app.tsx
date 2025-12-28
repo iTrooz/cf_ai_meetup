@@ -21,6 +21,15 @@ import {
   StopIcon
 } from "@phosphor-icons/react";
 
+function getProfileID(): string {
+  let id = localStorage.getItem("profileID");
+  if (!id) {
+    id = Math.random().toString(36).slice(2, 7);
+    localStorage.setItem("profileID", id);
+  }
+  return id;
+}
+
 export default function Chat() {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     // Check localStorage first, default to dark if not found
@@ -61,6 +70,7 @@ export default function Chat() {
   const [syncedState, setSyncedState] = useState<CommonState>({ state: "introduction" });
   const agent = useAgent({
     agent: "chat",
+    name: getProfileID(),
     onStateUpdate: (newState) => {
       setSyncedState(newState as any);
     }

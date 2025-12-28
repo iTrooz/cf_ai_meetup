@@ -1,4 +1,4 @@
-import { routeAgentRequest } from "agents";
+import { getAgentByName, routeAgentRequest, type AgentContext } from "agents";
 
 import { AIChatAgent } from "agents/ai-chat-agent";
 import {
@@ -16,6 +16,9 @@ import {
 import { createWorkersAI } from 'workers-ai-provider';
 import { env } from "cloudflare:workers";
 import { z } from "zod";
+import { UnpairedUsersDO } from "./backend/unpaired_users.do";
+export { UnpairedUsersDO };
+
 const workersai = createWorkersAI({ binding: env.AI });
 
 type Result<T, E> = 
@@ -37,12 +40,32 @@ const partialIntroductionSchema = z.object({ // partial, with descriptions, for 
   age: z.number(),
   interests: z.array(z.string()).describe("Interests/Hobbies of the user"),
 }).partial();
-type Introduction = z.infer<typeof introductionSchema>;
+type IntroductionData = z.infer<typeof introductionSchema>;
 
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
  */
 export class Chat extends AIChatAgent<Env, CommonState> {
+
+  initialState = {
+    state: "introduction" as const,
+  }
+  unpairedUsers: DurableObjectStub<UnpairedUsersDO>;
+
+  constructor(ctx: AgentContext, env: Env) {
+    super(ctx, env);
+    this.unpairedUsers = env.UnpairedUsersDO.getByName("default");
+  }
+
+  async onStateUpdate(state: CommonState) {
+    console.log("state updated", state);
+    
+    if (state.state == "waiting_for_partner") {
+      this.unpairedUsers.add(this.name);
+    } else {
+      this.unpairedUsers.remove(this.name);
+    }
+  }
 
   // Manually send a message as the agent
   // HACK
@@ -62,7 +85,7 @@ data: [DONE]
     return resp;
   }
 
-  async extractIntroductionData(message: UIMessage): Promise<Result<Introduction, string[]>> {
+  async extractIntroductionData(message: UIMessage): Promise<Result<IntroductionData, string[]>> {
     // Extract data
     const result = await generateText({
       system: `Extract information from this conversation to fill in the following fields.
@@ -92,10 +115,36 @@ Only fill fields if the user gave context around the information. "I'm 19" is ok
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
+    switch (this.state.state) {
+      case "introduction":
+        return this.onIntroductionChatMessage();
+      case "waiting_for_partner":
+        // should not happen
+        return this.responseFromString("Please wait while we find you a partner to chat with...");
+    }
+  }
+
+  async introductionComplete(intro: IntroductionData) {
+    this.setState({ state: "waiting_for_partner" });
+
+    const userIDs = await this.unpairedUsers.list();
+    // Make at most 50 tries to find a partner
+    for (let i = 0; i < Math.min(userIDs.length, 50); i++) {
+      const userID = userIDs[Math.floor(Math.random() * userIDs.length)];
+      if (userID != this.name) { // not yourself
+        // Found a partner
+        const otherAgent = await getAgentByName(this.env.Chat, userID);
+        otherAgent.setState({ state: "chatting", partner: this.name });
+        this.setState({ state: "chatting", partner: userID });
+      }
+    }
+  }
+
+  async onIntroductionChatMessage() {
     const msg = this.messages[this.messages.length - 1];
     const extractResult = await this.extractIntroductionData(msg);
-    if (extractResult.success || true) {
-      this.setState({ state: "waiting_for_partner" });
+    if (extractResult.success) {
+      this.introductionComplete(extractResult.value);
       return this.responseFromString("Good ! Now that I have all your information, you can proceed to access the platform. Welcome aboard!");
     }
 

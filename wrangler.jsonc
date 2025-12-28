@@ -22,6 +22,10 @@
 			{
 				"name": "Chat",
 				"class_name": "Chat"
+			},
+			{
+				"name": "UnpairedUsersDO",
+				"class_name": "UnpairedUsersDO"
 			}
 		]
 	},
