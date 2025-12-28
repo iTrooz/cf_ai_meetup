@@ -11,7 +11,8 @@ import {
   createUIMessageStreamResponse,
   Output,
   type ToolSet,
-  type UIMessage
+  type UIMessage,
+  generateId
 } from "ai";
 import { createWorkersAI } from 'workers-ai-provider';
 import { env } from "cloudflare:workers";
@@ -57,6 +58,10 @@ export class Chat extends AIChatAgent<Env, CommonState> {
     this.unpairedUsers = env.UnpairedUsersDO.getByName("default");
   }
 
+  async getIntroductionData(): Promise<IntroductionData | undefined> {
+    return await this.ctx.storage.get<IntroductionData>("introductionData");
+  }
+
   async onStateUpdate(state: CommonState) {
     console.log("state updated", state);
     
@@ -65,24 +70,12 @@ export class Chat extends AIChatAgent<Env, CommonState> {
     } else {
       this.unpairedUsers.remove(this.name);
     }
-  }
 
-  // Manually send a message as the agent
-  // HACK
-  async responseFromString(s: string): Promise<Response> {
-    let id = Math.random().toString(36).slice(2, 7);
-    let TEXT = `\
-data: {"type":"text-start","id":"${id}"}
-data: {"type":"text-delta","id":"${id}","delta":" ${s}"}
-data: {"type":"text-end","id":"${id}"}
-data: [DONE]
-`;
-    const resp = new Response(TEXT, {
-      headers: {
-        "Content-Type": "text/event-stream",
-      }
-    });
-    return resp;
+    if (state.state == "chatting" && state.partner) {
+      const partnerAgent = await getAgentByName(this.env.Chat, state.partner);
+      const partnerIntroData = await partnerAgent.getIntroductionData();
+      this.sendChatMessage(`You are now connected with ${partnerIntroData?.firstName}. Say hi!`, "assistant");
+    }
   }
 
   async extractIntroductionData(message: UIMessage): Promise<Result<IntroductionData, string[]>> {
@@ -108,6 +101,24 @@ Only fill fields if the user gave context around the information. "I'm 19" is ok
     return {success: false, error: msg};
   }
 
+  async sendChatMessage(s: string, role: "user" | "assistant") {
+    const msg = {
+        sentFromServer: true,
+        id: generateId(),
+        role,
+        parts: [
+          {
+            type: "text",
+            text: s,
+          }
+        ],
+        metadata: {
+          createdAt: new Date()
+        }
+      };
+    await this.saveMessages([...this.messages, msg as any]);
+  }
+
   /**
    * Handles incoming chat messages and manages the response stream
    */
@@ -115,29 +126,46 @@ Only fill fields if the user gave context around the information. "I'm 19" is ok
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
+    // Ensure we do not reply to ourselves
+    let lastMsg = this.messages[this.messages.length - 1];
+    if ((lastMsg as any).sentFromServer) return;
+
     switch (this.state.state) {
       case "introduction":
         return this.onIntroductionChatMessage();
       case "waiting_for_partner":
         // should not happen
-        return this.responseFromString("Please wait while we find you a partner to chat with...");
+        this.sendChatMessage("Please wait while we find you a partner to chat with...", "assistant");
+      case "chatting":
+        const partnerDo = await getAgentByName(this.env.Chat, this.state.partner!);
+        partnerDo.sendChatMessage(lastMsg.parts.map(p => p.type == "text" ? p.text : "").join(""), "user");
+        return;
     }
   }
 
   async introductionComplete(intro: IntroductionData) {
+    this.sendChatMessage("Good ! Now that I have all your information, you can proceed to access the platform. Welcome aboard!", "assistant");
     this.setState({ state: "waiting_for_partner" });
+    this.ctx.storage.put("introductionData", intro);
+    // TODO save intro data
+    this.searchPartner();
+  }
 
+  async searchPartner() {
     const userIDs = await this.unpairedUsers.list();
     // Make at most 50 tries to find a partner
     for (let i = 0; i < Math.min(userIDs.length, 50); i++) {
-      const userID = userIDs[Math.floor(Math.random() * userIDs.length)];
+      const userID = userIDs.splice(Math.floor(Math.random() * userIDs.length), 1)[0];
+      console.log(`checking potential partner for ${this.name}: ${userID}`);
       if (userID != this.name) { // not yourself
-        // Found a partner
+        console.log(`found partner for ${this.name}: ${userID}`);
         const otherAgent = await getAgentByName(this.env.Chat, userID);
         otherAgent.setState({ state: "chatting", partner: this.name });
         this.setState({ state: "chatting", partner: userID });
+        return;
       }
     }
+    console.log(`no partner found for ${this.name}, staying unpaired`);
   }
 
   async onIntroductionChatMessage() {
@@ -145,7 +173,7 @@ Only fill fields if the user gave context around the information. "I'm 19" is ok
     const extractResult = await this.extractIntroductionData(msg);
     if (extractResult.success) {
       this.introductionComplete(extractResult.value);
-      return this.responseFromString("Good ! Now that I have all your information, you can proceed to access the platform. Welcome aboard!");
+      return
     }
 
     const stream = createUIMessageStream({

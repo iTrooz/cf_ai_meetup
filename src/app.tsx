@@ -201,24 +201,22 @@ export default function Chat() {
           )}
 
           {agentMessages.map((m, index) => {
-            const isUser = m.role === "user";
-            const showAvatar =
-              index === 0 || agentMessages[index - 1]?.role !== m.role;
+            const isMe = !(m as any).sentFromServer;
 
             return (
               <div key={m.id}>
                 <div
-                  className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+                  className={`flex ${isMe ? "justify-end" : "justify-start"}`}
                 >
                   <div
                     className={`flex gap-2 max-w-[85%] ${
-                      isUser ? "flex-row-reverse" : "flex-row"
+                      isMe ? "flex-row-reverse" : "flex-row"
                     }`}
                   >
-                    {showAvatar && !isUser ? (
+                    {!isMe ? (
                       <Avatar username={"AI"} className="shrink-0" shortName={"AI"} />
                     ) : (
-                      !isUser && <div className="w-8" />
+                      !isMe && <div className="w-8" />
                     )}
 
                     <div>
@@ -230,7 +228,7 @@ export default function Chat() {
                               <div key={i}>
                                 <Card
                                   className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 ${
-                                    isUser
+                                    isMe
                                       ? "rounded-br-none"
                                       : "rounded-bl-none border-assistant-border"
                                   } ${
@@ -256,7 +254,7 @@ export default function Chat() {
                                 </Card>
                                 <p
                                   className={`text-xs text-muted-foreground mt-1 ${
-                                    isUser ? "text-right" : "text-left"
+                                    isMe ? "text-right" : "text-left"
                                   }`}
                                 >
                                   {formatTime(
