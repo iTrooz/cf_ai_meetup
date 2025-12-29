@@ -201,7 +201,7 @@ export default function Chat() {
           )}
 
           {agentMessages.map((m, index) => {
-            const isMe = !(m as any).sentFromServer;
+            const isMe = !(m as any).sentFromServer && m.role === "user";
 
             return (
               <div key={m.id}>
