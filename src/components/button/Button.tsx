@@ -1,6 +1,5 @@
 import { Loader } from "@/components/loader/Loader";
 import { Slot } from "@/components/slot/Slot";
-import { Tooltip } from "@/components/tooltip/Tooltip";
 import { cn } from "@/lib/utils";
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -32,6 +31,7 @@ const ButtonComponent = ({
   size = "base",
   title,
   toggled,
+  tooltip,
   variant = "secondary",
   ...props
 }: ButtonProps) => {
@@ -67,6 +67,7 @@ const ButtonComponent = ({
       href={href}
       rel={external ? "noopener noreferrer" : undefined}
       target={external ? "_blank" : undefined}
+      title={tooltip} // Use native tooltip
       {...props}
     >
       {title}
@@ -91,11 +92,5 @@ const ButtonComponent = ({
 };
 
 export const Button = ({ ...props }: ButtonProps) => {
-  return props.tooltip ? (
-    <Tooltip content={props.tooltip} className={props.className} id={props.id}>
-      <ButtonComponent {...props} className={undefined} />
-    </Tooltip>
-  ) : (
-    <ButtonComponent {...props} />
-  );
+  return <ButtonComponent {...props} />;
 };

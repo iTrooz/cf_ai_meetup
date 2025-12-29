@@ -159,6 +159,7 @@ export default function Chat() {
             shape="square"
             className="rounded-full h-9 w-9"
             onClick={resetProfile}
+            tooltip="Delete profile"
           >
             <TrashIcon size={20} />
           </Button>
