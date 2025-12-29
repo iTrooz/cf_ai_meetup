@@ -79,6 +79,7 @@ export default function Chat() {
       setSyncedState(newState as any);
     }
   });
+  console.log(syncedState.state)
 
   let indicator: string = "";
   switch (syncedState.state) {
@@ -169,7 +170,7 @@ export default function Chat() {
             {theme === "dark" ? <SunIcon size={20} /> : <MoonIcon size={20} />}
           </Button>
 
-          {syncedState.state === "chatting" && (
+          {(syncedState.state === "waiting" || syncedState.state === "chatting") && (
             <Button
               variant="ghost"
               size="md"
