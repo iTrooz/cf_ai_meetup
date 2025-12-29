@@ -14,6 +14,7 @@ export class UserChat extends AIChatAgent<Env, State> {
   initialState = {
     state: "introduction" as const,
   }
+  oldState: State | null = null;
   unpairedUsers: DurableObjectStub<UnpairedUsersDO>;
   logger!: pino.Logger;
 
@@ -30,13 +31,7 @@ export class UserChat extends AIChatAgent<Env, State> {
 
   // Can't use this.name in constructor. See https://github.com/cloudflare/workerd/issues/2240
   async onStart() {
-    // store name in local storage so we can access it in constructor next time
-    this.ctx.storage.put("agentName", this.name);
-  }
-
-  // Helper method
-  async helperSetDefaultLogger(userId: string) {
-    this.logger = globalLogger.child({ userId: userId });
+    this.logger = globalLogger.child({ userId: this.name });
   }
 
   async getIntroductionData(): Promise<IntroductionData | undefined> {
@@ -45,15 +40,33 @@ export class UserChat extends AIChatAgent<Env, State> {
 
   // not idempotent
   async onStateUpdate() {
-    this.logger.info({state: this.state}, "state updated");
+    this.logger.info({oldState: this.oldState, state: this.state}, "state updated");
 
+    // New partner
     if (this.state.state == "chatting" && this.state.partner) {
       const partnerAgent = await getAgentByName(this.env.UserChat, this.state.partner);
       const partnerIntroData = await partnerAgent.getIntroductionData();
       this.sendChatMessage(`You are now connected with ${partnerIntroData?.firstName}. Say hi!`, "assistant");
     }
 
+    // Want to switch partner
+    if (this.oldState?.state == "chatting" && this.state.state == "waiting_for_partner") {
+      this.logger.info("wants to switch partners");
+      const partnerChat = await getAgentByName(this.env.UserChat, this.oldState.partner!);
+      const partnerState = await partnerChat.state;
+      if (partnerState.state == "chatting") {
+        partnerChat.sendChatMessage("Your partner has disconnected. Searching for a new partner...", "assistant");
+        partnerChat.setState({ state: "waiting_for_partner" });
+      }
+    }
+
+    // Search partner
+    if (this.state.state == "waiting_for_partner") {
+      this.searchPartner();
+    }
+
     this.ensureCorrectState();
+    this.oldState = this.state;
   }
 
   // mutate agent to match state
@@ -146,8 +159,6 @@ Only fill fields if the user gave context around the information. "I'm 19" is ok
     this.sendChatMessage("Good ! Now that I have all your information, you can proceed to access the platform. Welcome aboard!", "assistant");
     this.ctx.storage.put("introductionData", intro);
     this.setState({ state: "waiting_for_partner" });
-    // TODO save intro data
-    this.searchPartner();
   }
 
   async searchPartner() {

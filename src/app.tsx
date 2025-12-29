@@ -18,7 +18,8 @@ import {
   SunIcon,
   TrashIcon,
   PaperPlaneTiltIcon,
-  StopIcon
+  StopIcon,
+  UserSwitchIcon
 } from "@phosphor-icons/react";
 
 function getProfileID(): string {
@@ -126,6 +127,10 @@ export default function Chat() {
     agent.setState({ state: "introduction" });
   }
 
+  const changePartner = () => {
+    agent.setState({ state: "waiting_for_partner" });
+  }
+
   // Scroll to bottom when messages change
   useEffect(() => {
     agentMessages.length > 0 && scrollToBottom();
@@ -152,6 +157,19 @@ export default function Chat() {
           >
             {theme === "dark" ? <SunIcon size={20} /> : <MoonIcon size={20} />}
           </Button>
+
+          {syncedState.state === "chatting" && (
+            <Button
+              variant="ghost"
+              size="md"
+              shape="square"
+              className="rounded-full h-9 w-9"
+              onClick={changePartner}
+              tooltip="Change partner"
+            >
+              <UserSwitchIcon size={20} />
+            </Button>
+          )}
 
           <Button
             variant="ghost"
