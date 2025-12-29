@@ -7,6 +7,14 @@ Key principles of the application:
 - One chat: you don't have multiple chats with multiple people at the same time. The introduction ("sign-up"), and chatting with people all happen from a single chat window
 - AI-enabled: you are signed-up by an LLM in an interactive way instead of going through a form
 
+# Architecture
+```mermaid
+flowchart TD
+Frontend <-->|Websocket| Worker
+Worker <-->|Websocket| UserChat["UserChat (DO)"]
+UserChat --> UnpairedUsersDO
+```
+
 # Future improvements (TODO)
 - Move away from the Agent SDK: while having integrated state is nice, the Agent SDK has limitations for this use cases. For examples, it requires you to re-send *all* chat messages back and forth on every message, instead of just sending the new message. Raw Websockets would probably be better
 - Implement UserChat DO automatic deletion to avoid extra billing and stay true to the "ephemeral" principle, e.g. after 12 hours without activity. I didn't check much, but the destroy() method coupled with a schedule seems to solve this problem (Although the method [creates errors](https://community.cloudflare.com/t/cloudflare-agent-no-such-table-error-after-destroy-re-initialization/801288))
