@@ -17,7 +17,7 @@ import {
 import { createWorkersAI } from 'workers-ai-provider';
 import { env } from "cloudflare:workers";
 import { z } from "zod";
-import { setupLogger } from "./logger";
+import { setupLogger } from "./backend/logger";
 import { UnpairedUsersDO } from "./backend/unpaired_users.do";
 import type pino from "pino";
 export { UnpairedUsersDO };
