@@ -9,7 +9,7 @@ import { globalLogger, instructModel, partialIntroductionSchema, chatModel, type
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
  */
-export class Chat extends AIChatAgent<Env, State> {
+export class UserChat extends AIChatAgent<Env, State> {
 
   initialState = {
     state: "introduction" as const,
@@ -48,7 +48,7 @@ export class Chat extends AIChatAgent<Env, State> {
     this.logger.info({state: this.state}, "state updated");
 
     if (this.state.state == "chatting" && this.state.partner) {
-      const partnerAgent = await getAgentByName(this.env.Chat, this.state.partner);
+      const partnerAgent = await getAgentByName(this.env.UserChat, this.state.partner);
       const partnerIntroData = await partnerAgent.getIntroductionData();
       this.sendChatMessage(`You are now connected with ${partnerIntroData?.firstName}. Say hi!`, "assistant");
     }
@@ -136,7 +136,7 @@ Only fill fields if the user gave context around the information. "I'm 19" is ok
         // should not happen
         this.sendChatMessage("Please wait while we find you a partner to chat with...", "assistant");
       case "chatting":
-        const partnerDo = await getAgentByName(this.env.Chat, this.state.partner!);
+        const partnerDo = await getAgentByName(this.env.UserChat, this.state.partner!);
         partnerDo.sendChatMessage(textMsg, "user");
         return;
     }
@@ -159,7 +159,7 @@ Only fill fields if the user gave context around the information. "I'm 19" is ok
       this.logger.info({partner: userID, }, "checking potential partner");
       if (userID != this.name) { // not yourself
         this.logger.info({partner: userID}, "found partner");
-        const otherAgent = await getAgentByName(this.env.Chat, userID);
+        const otherAgent = await getAgentByName(this.env.UserChat, userID);
         otherAgent.setState({ state: "chatting", partner: this.name });
         this.setState({ state: "chatting", partner: userID });
         return;

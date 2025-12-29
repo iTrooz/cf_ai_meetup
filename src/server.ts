@@ -1,8 +1,8 @@
 import { routeAgentRequest } from "agents";
 
-import { Chat } from "./backend/user_chat.do";
+import { UserChat } from "./backend/user_chat.do";
 import { UnpairedUsersDO } from "./backend/unpaired_users.do";
-export { UnpairedUsersDO, Chat };
+export { UnpairedUsersDO, UserChat };
 
 /**
  * Worker entry point that routes incoming requests to the appropriate handler

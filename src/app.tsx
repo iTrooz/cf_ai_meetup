@@ -69,7 +69,7 @@ export default function Chat() {
 
   const [syncedState, setSyncedState] = useState<State>({ state: "introduction" });
   const agent = useAgent({
-    agent: "chat",
+    agent: "UserChat",
     name: getProfileID(),
     onStateUpdate: (newState) => {
       setSyncedState(newState as any);
