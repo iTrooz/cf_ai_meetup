@@ -23,14 +23,19 @@ export class UserChat extends AIChatAgent<Env, State> {
 
     // Init logger as much as possible (we can't access this.name yet, and storage is async)
     this.logger = globalLogger;
+  }
 
-    // Ensure correct state
+  async onStart() {
+    // Ensure correct state. Used here because this.name is not available in constructor. See https://github.com/cloudflare/workerd/issues/2240
     this.ensureCorrectState();
   }
 
-  // Can't use this.name in constructor. See https://github.com/cloudflare/workerd/issues/2240
-  async onStart() {
-    this.logger = globalLogger.child({ userId: this.name });
+  async helper_setupLogger() {
+    if (this.state.state == "introduction") {
+      this.logger = globalLogger.child({ userId: this.name });
+    } else {
+      this.logger = globalLogger.child({ userId: this.name, userFirstName: (await this.getIntroductionData())!.firstName });
+    }
   }
 
   async getIntroductionData(): Promise<IntroductionData | undefined> {
@@ -74,19 +79,14 @@ export class UserChat extends AIChatAgent<Env, State> {
       this.searchPartner();
     }
 
-    this.ensureCorrectState();
+    await this.ensureCorrectState();
     await this.ctx.storage.put("oldState", this.state);
   }
 
   // mutate agent to match state
   // Same as onStateUpdate, but idempotent, so it can be called multiple times to ensure state correctness
   async ensureCorrectState() {
-    // Add user name info to logger
-    if (this.state.state == "introduction") {
-      this.logger = globalLogger.child({ userId: this.name });
-    } else {
-      this.logger = globalLogger.child({ userId: this.name, userFirstName: (await this.getIntroductionData())!.firstName });
-    }
+    await this.helper_setupLogger();
   }
 
   async extractIntroductionData(message: UIMessage): Promise<Result<IntroductionData, string[]>> {
