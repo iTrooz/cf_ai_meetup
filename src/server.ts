@@ -61,11 +61,23 @@ export class Chat extends AIChatAgent<Env, State> {
   constructor(ctx: AgentContext, env: Env) {
     super(ctx, env);
     this.unpairedUsers = env.UnpairedUsersDO.getByName("default");
+
+    // Init logger as much as possible (we can't access this.name yet, and storage is async)
+    this.logger = globalLogger;
+
+    // Ensure correct state
+    this.ensureCorrectState();
   }
 
   // Can't use this.name in constructor. See https://github.com/cloudflare/workerd/issues/2240
   async onStart() {
-    this.logger = globalLogger.child({ userId: this.name });
+    // store name in local storage so we can access it in constructor next time
+    this.ctx.storage.put("agentName", this.name);
+  }
+
+  // Helper method
+  async helperSetDefaultLogger(userId: string) {
+    this.logger = globalLogger.child({ userId: userId });
   }
 
   async getIntroductionData(): Promise<IntroductionData | undefined> {
@@ -73,26 +85,33 @@ export class Chat extends AIChatAgent<Env, State> {
   }
 
   // not idempotent
-  async onStateUpdate(state: State) {
-    this.logger.info({state}, "state updated");
+  async onStateUpdate() {
+    this.logger.info({state: this.state}, "state updated");
 
+    if (this.state.state == "chatting" && this.state.partner) {
+      const partnerAgent = await getAgentByName(this.env.Chat, this.state.partner);
+      const partnerIntroData = await partnerAgent.getIntroductionData();
+      this.sendChatMessage(`You are now connected with ${partnerIntroData?.firstName}. Say hi!`, "assistant");
+    }
+
+    this.ensureCorrectState();
+  }
+
+  // mutate agent to match state
+  // idempotent
+  async ensureCorrectState() {
     // Add user name info to logger
-    if (state.state == "introduction") {
+    if (this.state.state == "introduction") {
       this.logger = globalLogger.child({ userId: this.name });
     } else {
       this.logger = globalLogger.child({ userId: this.name, userFirstName: (await this.getIntroductionData())!.firstName });
     }
 
-    if (state.state == "waiting_for_partner") {
+    // Advertise user as unpaired
+    if (this.state.state == "waiting_for_partner") {
       this.unpairedUsers.add(this.name);
     } else {
       this.unpairedUsers.remove(this.name);
-    }
-
-    if (state.state == "chatting" && state.partner) {
-      const partnerAgent = await getAgentByName(this.env.Chat, state.partner);
-      const partnerIntroData = await partnerAgent.getIntroductionData();
-      this.sendChatMessage(`You are now connected with ${partnerIntroData?.firstName}. Say hi!`, "assistant");
     }
   }
 
@@ -148,6 +167,9 @@ Only fill fields if the user gave context around the information. "I'm 19" is ok
     let lastMsg = this.messages[this.messages.length - 1];
     if ((lastMsg as any).sentFromServer) return;
 
+    const textMsg = lastMsg.parts.map(p => p.type == "text" ? p.text : "").join("");
+    this.logger.info({message: textMsg}, "new chat message");
+
     switch (this.state.state) {
       case "introduction":
         return this.onIntroductionChatMessage();
@@ -156,7 +178,7 @@ Only fill fields if the user gave context around the information. "I'm 19" is ok
         this.sendChatMessage("Please wait while we find you a partner to chat with...", "assistant");
       case "chatting":
         const partnerDo = await getAgentByName(this.env.Chat, this.state.partner!);
-        partnerDo.sendChatMessage(lastMsg.parts.map(p => p.type == "text" ? p.text : "").join(""), "user");
+        partnerDo.sendChatMessage(textMsg, "user");
         return;
     }
   }
