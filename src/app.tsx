@@ -185,6 +185,8 @@ export default function Chat() {
 
           {agentMessages.map((m, index) => {
             const isMe = !(m as any).sentFromServer && m.role === "user";
+            const isOtherUser = (m as any).sentFromServer && m.role === "user";
+            const isAgent = m.role === "assistant";
 
             return (
               <div key={m.id}>
@@ -196,8 +198,10 @@ export default function Chat() {
                       isMe ? "flex-row-reverse" : "flex-row"
                     }`}
                   >
-                    {!isMe ? (
+                    {isAgent ? (
                       <Avatar username={"AI"} className="shrink-0" shortName={"AI"} />
+                    ) : isOtherUser ? (
+                      <Avatar username={"User"} className="shrink-0" shortName={"U"} />
                     ) : (
                       !isMe && <div className="w-8" />
                     )}
