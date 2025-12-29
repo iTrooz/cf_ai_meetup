@@ -81,10 +81,17 @@ export default function Chat() {
   });
 
   let indicator: string = "";
-  const isWaitingForPartner = syncedState.state === "waiting_for_partner";
-  if (isWaitingForPartner) {
-    indicator = "Waiting for a community member to join the chat... this may take a long time";
+  switch (syncedState.state) {
+    case "waiting_for_partner": {
+      indicator = "Waiting for a community member to join the chat... this may take a long time";
+      break;
+    }
+    case "waiting": {
+      indicator = "Click the top button to search a partner";
+      break;
+    }
   }
+  const canChat = syncedState.state === "introduction" || syncedState.state === "chatting";
 
   const [agentInput, setAgentInput] = useState("");
   const handleAgentInputChange = (
@@ -318,10 +325,10 @@ export default function Chat() {
           <div className="flex items-center gap-2">
             <div className="flex-1 relative">
               <Textarea
-                disabled={isWaitingForPartner}
+                disabled={!canChat}
                 placeholder={
-                  isWaitingForPartner
-                    ? "Waiting for community member..."
+                  !canChat
+                    ? "No partner"
                     : "Send a message..."
                 }
                 className="flex w-full border border-neutral-200 dark:border-neutral-700 px-3 py-2  ring-offset-background placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl text-base! pb-10 dark:bg-neutral-900"
@@ -361,7 +368,7 @@ export default function Chat() {
                   <button
                     type="submit"
                     className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                    disabled={!agentInput.trim() || isWaitingForPartner}
+                    disabled={!agentInput.trim() || !canChat}
                     aria-label="Send message"
                   >
                     <PaperPlaneTiltIcon size={16} />

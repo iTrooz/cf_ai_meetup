@@ -14,7 +14,6 @@ export class UserChat extends AIChatAgent<Env, State> {
   initialState = {
     state: "introduction" as const,
   }
-  oldState: State | null = null;
   unpairedUsers: DurableObjectStub<UnpairedUsersDO>;
   logger!: pino.Logger;
 
@@ -40,50 +39,53 @@ export class UserChat extends AIChatAgent<Env, State> {
 
   // not idempotent
   async onStateUpdate() {
-    this.logger.info({oldState: this.oldState, state: this.state}, "state updated");
+    const oldState = await this.ctx.storage.get<State>("oldState");
+    this.logger.info({oldState: oldState, state: this.state}, "state updated");
 
     // New partner
     if (this.state.state == "chatting" && this.state.partner) {
+      // Mark as having recently chatted with
+      let lastPartners = await this.ctx.storage.get<string[]>("lastPartners") || [];
+      lastPartners.push(this.state.partner);
+      if (lastPartners.length > 10) lastPartners = lastPartners.slice(-10);
+      await this.ctx.storage.put("lastPartners", lastPartners);
+
+      // Notify user
       const partnerAgent = await getAgentByName(this.env.UserChat, this.state.partner);
       const partnerIntroData = await partnerAgent.getIntroductionData();
       this.sendChatMessage(`You are now connected with ${partnerIntroData?.firstName}. Say hi!`, "assistant");
     }
 
-    // Want to switch partner
-    if (this.oldState?.state == "chatting" && this.state.state == "waiting_for_partner") {
-      this.logger.info("wants to switch partners");
-      const partnerChat = await getAgentByName(this.env.UserChat, this.oldState.partner!);
+    // Stopped chatting
+    if (oldState?.state == "chatting") {
+      this.logger.info("stopped chatting");
+      const partnerChat = await getAgentByName(this.env.UserChat, oldState.partner!);
       const partnerState = await partnerChat.state;
-      if (partnerState.state == "chatting") {
-        partnerChat.sendChatMessage("Your partner has disconnected. Searching for a new partner...", "assistant");
-        partnerChat.setState({ state: "waiting_for_partner" });
+      // If they were chatting with me
+      if (partnerState.state == "chatting" && partnerState.partner == this.name) {
+        partnerChat.sendChatMessage("Your partner has disconnected. Click the button above to search for a new partner", "assistant");
+        partnerChat.setState({ state: "waiting" });
       }
     }
 
     // Search partner
     if (this.state.state == "waiting_for_partner") {
+      this.unpairedUsers.add(this.name);
       this.searchPartner();
     }
 
     this.ensureCorrectState();
-    this.oldState = this.state;
+    await this.ctx.storage.put("oldState", this.state);
   }
 
   // mutate agent to match state
-  // idempotent
+  // Same as onStateUpdate, but idempotent, so it can be called multiple times to ensure state correctness
   async ensureCorrectState() {
     // Add user name info to logger
     if (this.state.state == "introduction") {
       this.logger = globalLogger.child({ userId: this.name });
     } else {
       this.logger = globalLogger.child({ userId: this.name, userFirstName: (await this.getIntroductionData())!.firstName });
-    }
-
-    // Advertise user as unpaired
-    if (this.state.state == "waiting_for_partner") {
-      this.unpairedUsers.add(this.name);
-    } else {
-      this.unpairedUsers.remove(this.name);
     }
   }
 
@@ -152,6 +154,8 @@ Only fill fields if the user gave context around the information. "I'm 19" is ok
         const partnerDo = await getAgentByName(this.env.UserChat, this.state.partner!);
         partnerDo.sendChatMessage(textMsg, "user");
         return;
+      default:
+        this.logger.error({state: this.state}, "message received while in unexpected state");
     }
   }
 
@@ -163,19 +167,37 @@ Only fill fields if the user gave context around the information. "I'm 19" is ok
 
   async searchPartner() {
     const userIDs = await this.unpairedUsers.list();
+    let lastPartners = await this.ctx.storage.get<string[]>("lastPartners") || [];
+    this.logger.info({unpairedUsers: userIDs.length, lastPartners: lastPartners.length}, "searching for partner");
+
     // Make at most 50 tries to find a partner
-    this.logger.info({users: userIDs.length}, "searching for partner");
-    for (let i = 0; i < Math.min(userIDs.length, 50); i++) {
+    const unpairedUsersLength = userIDs.length;
+    for (let i = 0; i < Math.min(unpairedUsersLength, 50); i++) {
       const userID = userIDs.splice(Math.floor(Math.random() * userIDs.length), 1)[0];
-      this.logger.info({partner: userID, }, "checking potential partner");
-      if (userID != this.name) { // not yourself
-        this.logger.info({partner: userID}, "found partner");
-        const otherAgent = await getAgentByName(this.env.UserChat, userID);
-        otherAgent.setState({ state: "chatting", partner: this.name });
-        this.setState({ state: "chatting", partner: userID });
-        return;
+      this.logger.info({potentialPartner: userID}, "checking potential partner");
+
+      if (lastPartners.includes(userID)) {
+         this.logger.info({potentialPartner: userID}, "skipping partner (chatted recently)");
+         continue;
       }
+      if (userID == this.name) {
+          this.logger.info("skipping self as partner");
+          continue;
+      }
+
+      this.logger.info({partner: userID}, "found partner");
+
+      // imediately signal ourselves as paired
+      this.unpairedUsers.remove(this.name);
+      this.unpairedUsers.remove(userID);
+
+      // update our state
+      const otherAgent = await getAgentByName(this.env.UserChat, userID);
+      otherAgent.setState({ state: "chatting", partner: this.name });
+      this.setState({ state: "chatting", partner: userID });
+      return;
     }
+
     this.logger.info("no partner found, staying unpaired");
   }
 
