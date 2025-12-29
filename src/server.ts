@@ -17,8 +17,12 @@ import {
 import { createWorkersAI } from 'workers-ai-provider';
 import { env } from "cloudflare:workers";
 import { z } from "zod";
+import { setupLogger } from "./logger";
 import { UnpairedUsersDO } from "./backend/unpaired_users.do";
+import type pino from "pino";
 export { UnpairedUsersDO };
+
+const globalLogger = await setupLogger();
 
 const workersai = createWorkersAI({ binding: env.AI });
 
@@ -52,19 +56,33 @@ export class Chat extends AIChatAgent<Env, State> {
     state: "introduction" as const,
   }
   unpairedUsers: DurableObjectStub<UnpairedUsersDO>;
+  logger!: pino.Logger;
 
   constructor(ctx: AgentContext, env: Env) {
     super(ctx, env);
     this.unpairedUsers = env.UnpairedUsersDO.getByName("default");
   }
 
+  // Can't use this.name in constructor. See https://github.com/cloudflare/workerd/issues/2240
+  async onStart() {
+    this.logger = globalLogger.child({ userId: this.name });
+  }
+
   async getIntroductionData(): Promise<IntroductionData | undefined> {
     return await this.ctx.storage.get<IntroductionData>("introductionData");
   }
 
+  // not idempotent
   async onStateUpdate(state: State) {
-    console.log("state updated", state);
-    
+    this.logger.info({state}, "state updated");
+
+    // Add user name info to logger
+    if (state.state == "introduction") {
+      this.logger = globalLogger.child({ userId: this.name });
+    } else {
+      this.logger = globalLogger.child({ userId: this.name, userFirstName: (await this.getIntroductionData())!.firstName });
+    }
+
     if (state.state == "waiting_for_partner") {
       this.unpairedUsers.add(this.name);
     } else {
@@ -92,12 +110,12 @@ Only fill fields if the user gave context around the information. "I'm 19" is ok
     });
 
     const zodResult = introductionSchema.safeParse(result.output);
-    console.log("extracted info so far:", result.output);
+    this.logger.info({extractedInfo: result.output}, "extracted introduction data so far");
     if (zodResult.success) {
       return {success: true, value: zodResult.data};
     }
     const msg = zodResult.error.issues.map(issue => `${issue.path.join(".")}: ${issue.message}`);
-    console.log("missing info so far:", msg);
+    this.logger.info({missingInfo: msg}, "missing introduction data so far");
     return {success: false, error: msg};
   }
 
@@ -145,8 +163,8 @@ Only fill fields if the user gave context around the information. "I'm 19" is ok
 
   async introductionComplete(intro: IntroductionData) {
     this.sendChatMessage("Good ! Now that I have all your information, you can proceed to access the platform. Welcome aboard!", "assistant");
-    this.setState({ state: "waiting_for_partner" });
     this.ctx.storage.put("introductionData", intro);
+    this.setState({ state: "waiting_for_partner" });
     // TODO save intro data
     this.searchPartner();
   }
@@ -154,18 +172,19 @@ Only fill fields if the user gave context around the information. "I'm 19" is ok
   async searchPartner() {
     const userIDs = await this.unpairedUsers.list();
     // Make at most 50 tries to find a partner
+    this.logger.info({users: userIDs.length}, "searching for partner");
     for (let i = 0; i < Math.min(userIDs.length, 50); i++) {
       const userID = userIDs.splice(Math.floor(Math.random() * userIDs.length), 1)[0];
-      console.log(`checking potential partner for ${this.name}: ${userID}`);
+      this.logger.info({partner: userID, }, "checking potential partner");
       if (userID != this.name) { // not yourself
-        console.log(`found partner for ${this.name}: ${userID}`);
+        this.logger.info({partner: userID}, "found partner");
         const otherAgent = await getAgentByName(this.env.Chat, userID);
         otherAgent.setState({ state: "chatting", partner: this.name });
         this.setState({ state: "chatting", partner: userID });
         return;
       }
     }
-    console.log(`no partner found for ${this.name}, staying unpaired`);
+    this.logger.info("no partner found, staying unpaired");
   }
 
   async onIntroductionChatMessage() {
