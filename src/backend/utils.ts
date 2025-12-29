@@ -3,8 +3,7 @@ import { env } from "cloudflare:workers";
 import { z } from "zod";
 
 import { setupLogger } from "./logger";
-
-export const globalLogger = await setupLogger();
+export const globalLogger = setupLogger();
 
 export const workersai = createWorkersAI({ binding: env.AI });
 
