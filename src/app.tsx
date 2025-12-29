@@ -22,11 +22,14 @@ import {
   UserSwitchIcon
 } from "@phosphor-icons/react";
 
-function getProfileID(): string {
-  let id = localStorage.getItem("profileID");
+function resetUserID() {
+  localStorage.removeItem("userID");
+}
+function getUserID(): string {
+  let id = localStorage.getItem("userID");
   if (!id) {
     id = Math.random().toString(36).slice(2, 7);
-    localStorage.setItem("profileID", id);
+    localStorage.setItem("userID", id);
   }
   return id;
 }
@@ -71,7 +74,7 @@ export default function Chat() {
   const [syncedState, setSyncedState] = useState<State>({ state: "introduction" });
   const agent = useAgent({
     agent: "UserChat",
-    name: getProfileID(),
+    name: getUserID(),
     onStateUpdate: (newState) => {
       setSyncedState(newState as any);
     }
@@ -125,6 +128,7 @@ export default function Chat() {
   const resetProfile = () => {
     clearHistory();
     agent.setState({ state: "introduction" });
+    resetUserID(); // this is the important line: it will connect you to a new agent
   }
 
   const changePartner = () => {
