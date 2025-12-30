@@ -23,3 +23,12 @@ UserChat --> UnpairedUsersDO
 - Scan the chat messages between users with an LLM, to provide suggestions (e.g. "Do you want to find another partner ?" after a negative message is sent)
 - Use tools (function calling) instead of a dedicated LLM to fill the introduction data, for better results ?
 - Get matched with online (with an active WebSocket connection) users first.
+
+# Other
+As part of this assignment, I also created some pull requests, and code snippets which I hope will help other people.
+
+https://github.com/cloudflare/agents/pull/761 (I'd love a review !)
+https://github.com/pinojs/sonic-boom/pull/236
+https://gist.github.com/iTrooz/a2c3f0f50da2ec31d075ca751985ab4b 
+https://gist.github.com/iTrooz/179e498d181f811ec6ebc30396a73f51 
+https://stackoverflow.com/a/79857139/14632023 
